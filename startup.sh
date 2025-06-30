@@ -22,15 +22,20 @@ else
     echo "ffmpeg already installed."
 fi
 
-# Install Python packages from PY_PACKAGES environment variable
-if [[ ! -z "{{PY_PACKAGES}}" ]]; then
-    pip install -U --prefix .local {{PY_PACKAGES}}
+# Create a Python virtual environment if it doesn't exist
+if [ ! -d "/home/container/venv" ]; then
+    echo "Creating virtual environment..."
+    /usr/local/bin/python -m venv /home/container/venv
+    echo "Virtual environment created."
 fi
 
-# Install Python packages from requirements file if it exists
-if [[ -f /home/container/${REQUIREMENTS_FILE} ]]; then
-    pip install -U --prefix .local -r ${REQUIREMENTS_FILE}
-fi
+# Activate the virtual environment and install Python packages from requirements.txt
+source /home/container/venv/bin/activate
+# Update yt-dlp to the latest version within the virtual environment
+echo "Updating yt-dlp..."
+pip install -U yt-dlp
+echo "yt-dlp updated."
+pip install -r /home/container/requirements.txt
 
-# Execute the bot script
-/usr/local/bin/python /home/container/{{PY_FILE}}
+# Execute the bot script using the virtual environment's python
+/home/container/venv/bin/python /home/container/bot.py
