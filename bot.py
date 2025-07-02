@@ -307,7 +307,7 @@ async def play_next(ctx):
 
             description_text = (
                 f"**{title}**\n\n"
-                f"👤 **Requested by:** <@{requester_id}>\n"
+                f"<:Orion_User:1389189744625188884> **Requested by:** <@{requester_id}>\n"
                 f"<:Orion_Timer:1386211890774151219> **Music Duration:** {duration_str}\n"
                 f"<:Orion_Partner:1386212658453151815> **Music Author:** {artist}\n\n"
                 f"`00:00 / {duration_str}`\n{progress_bar}"
