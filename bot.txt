@@ -182,12 +182,12 @@ async def update_progress_task(ctx, now_playing_msg, title, duration, song_start
             elapsed = int(time.monotonic() - song_start_time)
             
             # Break if the song is expected to be over (with a small buffer)
-            if duration is not None and duration > 0 and elapsed >= duration + 2:
+            if duration is not None and duration > 0 and elapsed >= duration + 2: 
                 break
             
             progress = create_progress_bar(elapsed, duration)
             
-            current_embed = embed_template.copy()
+            current_embed = embed_template.copy() 
             
             # Reconstruct the description, preserving static info
             original_description_lines = embed_template.description.split('\n')
@@ -213,7 +213,7 @@ async def update_progress_task(ctx, now_playing_msg, title, duration, song_start
                 print(f"[DEBUG] 'Now Playing' message {original_message_id} not found, stopping update task.")
                 break # Message was deleted
             except discord.errors.HTTPException as e:
-                if e.code == 50001: # Missing Access (e.g., bot lost permissions or channel deleted)
+                if e.code == 50001:  # Missing Access (e.g., bot lost permissions or channel deleted)
                     print(f"[WARNING] Bot missing access to update message {original_message_id}: {e}")
                     break
                 raise # Re-raise other HTTP errors
@@ -243,7 +243,7 @@ async def update_progress_task(ctx, now_playing_msg, title, duration, song_start
             try:
                 # Remove buttons only if the song genuinely finished and not skipped/stopped
                 if not vc.is_playing() and not vc.is_paused(): # Check if bot is truly not playing
-                    await now_playing_msg.edit(embed=final_embed, view=None)
+                    await now_playing_msg.edit(embed=final_embed, view=None) 
             except discord.errors.NotFound:
                 pass # Message already deleted
             except discord.errors.HTTPException as e:
@@ -282,7 +282,7 @@ async def play_next(ctx):
             if 'entries' in info and info.get('_type') == 'playlist' and info.get('entries'):
                 info = info['entries'][0] # Take the first entry if it's a playlist
             elif 'entries' in info and len(info['entries']) > 0: # For a single URL that yt_dlp treats as a list
-                info = info['entries'][0]
+                 info = info['entries'][0]
 
             audio_url = info['url']
             title = info.get('title', 'Unknown Title')
@@ -358,8 +358,9 @@ async def play_next(ctx):
             except Exception as e:
                 print(f"[DEBUG] Error cleaning up message on queue end: {e}")
         
-        # Bot will stay in the voice channel after the queue is finished.
+        # Consider disconnecting if bot is idle after queue ends
         if ctx.voice_client and not ctx.voice_client.is_playing() and not ctx.voice_client.is_paused():
+            # await ctx.voice_client.disconnect() # Optional: auto-disconnect on queue end
             await ctx.send("The queue has finished. I'll stay in the voice channel for more songs, or you can use `!disconnect`.")
 
 
@@ -367,23 +368,6 @@ async def play_next(ctx):
 @bot.event
 async def on_ready():
     print(f'[DEBUG] Logged in as {bot.user} (ID: {bot.user.id})')
-
-# NEW: Event handler to make the bot permanent in voice channels
-@bot.event
-async def on_voice_state_update(member, before, after):
-    # Ignore the bot's own voice state changes
-    if member.id == bot.user.id:
-        return
-
-    voice_client = member.guild.voice_client
-    # If the bot is not in a voice channel, do nothing
-    if not voice_client:
-        return
-
-    # This is the crucial part: we check if the bot is alone, but we DO NOT disconnect.
-    # This ensures the bot remains in the channel until explicitly told to leave.
-    if len(voice_client.channel.members) == 1:
-        print(f"[DEBUG] Bot is now alone in '{voice_client.channel.name}' but will remain connected as requested.")
 
 
 @bot.event
@@ -425,10 +409,10 @@ async def on_interaction(interaction):
                 await interaction.response.send_message(*args, **kwargs, ephemeral=True)
             
             async def invoke(self, command, *args, **kwargs):
-                # This part is tricky. If the original context is truly gone,
+                # This part is tricky. If the original context is truly gone, 
                 # invoking a command might fail without the full context.
                 # For button presses, we usually want to just call the function directly.
-                pass
+                pass 
         ctx = DummyContext(bot, interaction)
         # If still no voice client, and command needs it, send a message
         if not ctx.voice_client and custom_id in ["pause", "resume", "skip", "disconnect"]:
@@ -537,7 +521,7 @@ async def leave(ctx):
 @bot.command(name='disconnect', aliases=['dc'])
 async def disconnect(ctx):
     # This command is often synonymous with 'leave' for a music bot
-    await leave(ctx)
+    await leave(ctx) 
 
 @bot.command(name='play', aliases=['p'])
 async def play(ctx, *, search_term: str):
@@ -732,7 +716,7 @@ async def queue(ctx):
         if ctx.voice_client and ctx.voice_client.is_playing() and guild_id in current_playing_messages:
             try:
                 current_embed = current_playing_messages[guild_id].embeds[0]
-                if current_embed.title == "<a:Orion_VinylRecord:1386211619410804756>   Now Playing" and current_embed.description:
+                if current_embed.title == "🎶 Now Playing" and current_embed.description:
                     description_parts.append("**__Currently Playing__**")
                     # Append relevant lines from the 'Now Playing' embed (e.g., first 8 lines which cover song title, requester, duration, author)
                     description_parts.extend(current_embed.description.split('\n')[:8])
@@ -760,14 +744,14 @@ async def queue(ctx):
         await ctx.send("Queue is empty.")
         # If there's a "Now Playing" message, it might be the only active song
         if ctx.voice_client and ctx.voice_client.is_playing() and guild_id in current_playing_messages:
-            try:
+             try:
                 current_embed = current_playing_messages[guild_id].embeds[0]
-                if current_embed.title == "<a:Orion_VinylRecord:1386211619410804756>   Now Playing" and current_embed.description:
+                if current_embed.title == "🎶 Now Playing" and current_embed.description:
                     # Extract the title from the description (first line)
                     current_song_title = current_embed.description.split('\n')[0].replace('**', '').strip()
                     await ctx.send(f"Currently playing: **{current_song_title}** (Queue is otherwise empty).")
-            except Exception:
-                pass # Couldn't get info, just sent "Queue is empty."
+             except Exception:
+                 pass # Couldn't get info, just sent "Queue is empty."
 
 # --- Run Bot ---
 if __name__ == '__main__':
