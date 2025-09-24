@@ -5,3 +5,4 @@ FFmpeg-Python
 python-dotenv
 aiohttp
 spotipy
+lyricsgenius==3.0.1
