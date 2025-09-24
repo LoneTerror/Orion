@@ -45,7 +45,9 @@ bot = commands.Bot(command_prefix=" ", intents=intents)
 
 # --- Globals ---
 music_queues = {}
-loop_states = {}             
+loop_states = {}
+loop_queue_states = {}
+played_songs = {}
 current_song_info = {}
 context_for_guild = {}
 current_playing_messages = {}
@@ -251,9 +253,29 @@ async def play_next(ctx):
         except (discord.errors.NotFound, AttributeError):
             pass
 
+    # CHANGE 1: Check if the queue is empty and if queue loop is on.
+    if not music_queues.get(guild_id):
+        if loop_queue_states.get(guild_id, False):
+            history = played_songs.get(guild_id, [])
+            if history:
+                music_queues[guild_id] = history.copy()
+                played_songs[guild_id] = [] 
+        else:
+            # If no loop, clear all session data and send a final message.
+            current_song_info.pop(guild_id, None)
+            played_songs.pop(guild_id, None) 
+            await ctx.send("The queue has finished. Add more songs or use `/disconnect`.")
+            return
+
     if guild_id in music_queues and music_queues[guild_id]:
         song_data = music_queues[guild_id].pop(0)
         current_song_info[guild_id] = song_data
+
+        # CHANGE 2: Add the currently playing song to the history.
+        if guild_id not in played_songs:
+            played_songs[guild_id] = []
+        played_songs[guild_id].append(song_data)
+        
         url = song_data['url']
         requester_id = song_data['requester']['id']
         try:
@@ -425,6 +447,10 @@ async def on_interaction(interaction: discord.Interaction):
     elif custom_id == "disconnect":
         guild_id = interaction.guild.id
         music_queues.pop(guild_id, None)
+        loop_states.pop(guild_id, None)
+        loop_queue_states.pop(guild_id, None)
+        current_song_info.pop(guild_id, None)
+        played_songs.pop(guild_id, None)
         if guild_id in current_playing_messages:
              try:
                 msg = current_playing_messages.pop(guild_id)
@@ -577,26 +603,47 @@ async def play(interaction: discord.Interaction, search_term: str):
             await interaction.followup.send(content=f"An unexpected error occurred: {e}", ephemeral=True)   
 
 
-@bot.tree.command(name="loop", description="Loops the currently playing song.")
-async def loop(interaction: discord.Interaction):
-    vc = interaction.guild.voice_client
-    if not vc or not (vc.is_playing() or vc.is_paused()):
-        await interaction.response.send_message("I'm not playing anything right now!", ephemeral=True)
-        return
-
+# --- Highlighted Comment: Replace your old /loop command with this new one. ---
+@bot.tree.command(name="loop", description="Sets the loop mode for the player.")
+@app_commands.choices(mode=[
+    app_commands.Choice(name="Song (On)", value="song_on"),
+    app_commands.Choice(name="Song (Off)", value="song_off"),
+    app_commands.Choice(name="Queue (On)", value="queue_on"),
+    app_commands.Choice(name="Queue (Off)", value="queue_off"),
+    app_commands.Choice(name="Turn Off (All)", value="off"),
+])
+async def loop(interaction: discord.Interaction, mode: app_commands.Choice[str]):
     guild_id = interaction.guild.id
-    # Toggle the loop state for the current guild
-    current_state = loop_states.get(guild_id, False)
-    loop_states[guild_id] = not current_state
+    vc = interaction.guild.voice_client
 
-    # When disabling loop, also clear the current song info to prevent accidental loops
-    if not loop_states[guild_id]:
-        current_song_info.pop(guild_id, None)
+    if mode.value == "song_on":
+        if not vc or not (vc.is_playing() or vc.is_paused()):
+            await interaction.response.send_message("A song must be playing to enable song loop.", ephemeral=True)
+            return
+        # Enable song loop, disable queue loop
+        loop_states[guild_id] = True
+        loop_queue_states[guild_id] = False 
+        await interaction.response.send_message("🔁 Looping the current **song** is now **ON**.", ephemeral=True)
 
-    if loop_states[guild_id]:
-        await interaction.response.send_message("🔁 Looping is now **enabled** for the current song.", ephemeral=True)
-    else:
-        await interaction.response.send_message("🔁 Looping is now **disabled**.", ephemeral=True)
+    elif mode.value == "song_off":
+        loop_states[guild_id] = False
+        await interaction.response.send_message("Looping the current song is now **OFF**.", ephemeral=True)
+
+    elif mode.value == "queue_on":
+        # Enable queue loop, disable song loop
+        loop_queue_states[guild_id] = True
+        loop_states[guild_id] = False
+        await interaction.response.send_message("🔁 Looping the entire **queue** is now **ON**.", ephemeral=True)
+
+    elif mode.value == "queue_off":
+        loop_queue_states[guild_id] = False
+        await interaction.response.send_message("Looping the queue is now **OFF**.", ephemeral=True)
+
+    elif mode.value == "off":
+        # Disable all looping
+        loop_states[guild_id] = False
+        loop_queue_states[guild_id] = False
+        await interaction.response.send_message("All looping is now **disabled**.", ephemeral=True)
 
 
 @bot.tree.command(name="disconnect", description="Disconnects the bot from the voice channel and clears the queue.")
