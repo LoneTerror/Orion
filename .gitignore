@@ -1,3 +1,10 @@
 .env
 cookies.txt
 .cache
+/playlists
+/venv
+song_log.json
+event_log.json
+queue_state.json
+run.bat
+startup.sh

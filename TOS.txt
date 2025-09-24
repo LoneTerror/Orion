@@ -1,0 +1,58 @@
+Terms of Service for Orion Bot
+Last Updated: September 24, 2025
+
+1. Acceptance of Terms
+By adding or using the Orion ("The Bot") in your Discord server, you, the user, agree to be bound by these Terms of Service ("Terms"). If you do not agree to all of these Terms, you are not permitted to use the Bot. These Terms apply to all users of the Bot, including server administrators, moderators, and members.
+
+The developer of Orion, Prasun Chakraborty, reserves the right to update or change these Terms at any time without prior notice. The "Last Updated" date at the top of this document will be revised upon any changes. Continued use of the Bot after any such changes constitutes your acceptance of the new Terms.
+
+2. Description of Service
+Orion is a Discord bot designed to provide music playback functionality, queue management, and other related features within Discord servers. The Bot streams audio from third-party platforms such as YouTube and Spotify (by searching for equivalent tracks on YouTube). The availability and functionality of the Bot are provided on an "as-is" and "as-available" basis. We do not guarantee that the service will be uninterrupted or error-free.
+
+3. User Conduct and Responsibilities
+As a user, you agree to use Orion in compliance with all applicable laws and regulations, as well as the Discord Terms of Service and Community Guidelines. You are responsible for all activity and content associated with your use of the Bot.
+
+Prohibited activities include, but are not limited to:
+
+Illegal Use: Using the Bot to play, distribute, or request content that is illegal, defamatory, hateful, or infringing on intellectual property rights.
+
+Spamming: Intentionally spamming the Bot's commands to disrupt its service or the experience of other users.
+
+Abuse or Exploitation: Attempting to exploit bugs, vulnerabilities, or unintended features of the Bot to cause harm, gain an unfair advantage, or disrupt service.
+
+Circumvention: Using the Bot to bypass any restrictions or limitations set by third-party services (e.g., geographical restrictions on content), or by Discord itself.
+
+Reverse Engineering: Decompiling, reverse-engineering, or otherwise attempting to discover the source code or underlying structure of the Bot.
+
+Violation of these rules may result in a temporary or permanent ban from using the Bot, at our sole discretion.
+
+4. Third-Party Services
+Orion relies on third-party APIs and services, including but not limited to Discord, YouTube, and Spotify. The Bot is subject to the terms and conditions of these services. We are not responsible for the content, policies, or practices of these third-party platforms.
+
+The availability of content is dependent on these services. We cannot be held liable for any content that is unavailable, removed, or restricted by these platforms. You, the user, are responsible for ensuring that your request and use of content through the Bot comply with the terms of the respective third-party service.
+
+5. Data and Privacy
+We are committed to protecting your privacy. The Bot may log certain data to function correctly and for analytical purposes. This includes:
+
+Discord User IDs (for command permissions and identifying requesters).
+
+Discord Server (Guild) IDs (for server-specific settings and queues).
+
+Command usage data (for analytics and debugging).
+
+Song request information (titles, URLs for logging).
+
+For a detailed explanation of what data is collected and how it is used, please refer to our Privacy Policy [Link to your Privacy Policy - this is highly recommended to have as a separate document]. By using the Bot, you consent to the data practices described therein.
+
+6. Disclaimer of Warranties and Limitation of Liability
+THE BOT IS PROVIDED "AS IS." WE MAKE NO WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, AND NON-INFRINGEMENT.
+
+IN NO EVENT SHALL THE DEVELOPER BE LIABLE FOR ANY CLAIM, DAMAGES, OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT, OR OTHERWISE, ARISING FROM, OUT OF, OR IN CONNECTION WITH THE BOT OR THE USE OR OTHER DEALINGS IN THE BOT. THIS INCLUDES ANY DIRECT, INDIRECT, INCIDENTAL, OR CONSEQUENTIAL DAMAGES, SUCH AS LOSS OF DATA OR INTERRUPTION OF SERVICE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGES.
+
+7. Termination
+We reserve the right to terminate or suspend access to the Bot at any time, for any reason, without prior notice or liability. This may include banning a user or a server from using the Bot for violating these Terms.
+
+You may stop using the Bot at any time by simply removing it from your Discord server.
+
+8. Contact Information
+For any questions, support requests, or concerns regarding these Terms of Service, please contact us at - nothingshere21@gmail.com

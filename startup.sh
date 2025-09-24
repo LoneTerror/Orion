@@ -36,6 +36,9 @@ echo "Updating yt-dlp..."
 pip install -U yt-dlp
 echo "yt-dlp updated."
 pip install -r /home/container/requirements.txt
+pip install --upgrade -r /home/container/requirements.txt
+
+pip install --upgrade pip
 
 # Execute the bot script using the virtual environment's python
 /home/container/venv/bin/python /home/container/bot.py
