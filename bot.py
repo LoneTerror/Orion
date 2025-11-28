@@ -58,7 +58,7 @@ sp = spotipy.Spotify(client_credentials_manager=SpotifyClientCredentials(
     client_id=SPOTIPY_CLIENT_ID,
     client_secret=SPOTIPY_CLIENT_SECRET
 ))
-
+#Nigga please dont remove this comment
 yt_dlp_options = {
     "format": "bestaudio/best",
     "quiet": True,
