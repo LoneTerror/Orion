@@ -57,43 +57,57 @@ sp = spotipy.Spotify(client_credentials_manager=SpotifyClientCredentials(
     client_secret=SPOTIPY_CLIENT_SECRET
 ))
 
-# --- SMART CONFIGURATION (OAuth2 for Server, Anonymous for PC) ---
-# Windows = Residential IP = Works best Anonymously
-# Linux = Datacenter IP = Needs OAuth2 to prove humanity
+# --- SMART CONFIGURATION (Strict Separation) ---
 
-if sys.platform != "win32":
-    # Server Mode: Use OAuth2
-    print("[INFO] Linux detected: Enabling OAuth2 authentication")
-    auth_options = {
-        "username": "oauth2",
-        "password": ""
-    }
-else:
-    # Windows Mode: Use Anonymous Android Bypass
-    print("[INFO] Windows detected: Using Anonymous Bypass")
-    auth_options = {}
+# Define a custom logger to FORCE printing the auth code to Pterodactyl console
+class MyLogger:
+    def debug(self, msg):
+        # We only care about the Auth Code messages
+        if "device" in msg.lower() or "code" in msg.lower() or "authenticate" in msg.lower():
+            print(f"\n\n[AUTH REQUIRED] {msg}\n\n")
+        elif not msg.startswith('[debug] '):
+            # Print other non-debug info
+            print(f"[YTDLP] {msg}")
 
+    def warning(self, msg):
+        print(f"[YTDLP-WARN] {msg}")
+
+    def error(self, msg):
+        print(f"[YTDLP-ERROR] {msg}")
+
+# Base Options (Common settings)
 yt_dlp_options = {
     "format": "bestaudio/best",
-    "quiet": True,
     "noplaylist": True,
     "default_search": "auto",
     "extract_flat": False,
-    
-    # Inject the Dynamic Auth Options
-    **auth_options,
-    
-    # --- CREATOR CLIENT BYPASS ---
-    "extractor_args": {"youtube": {"player_client": ["android_creator"]}},
-    
-    # --- NETWORK FIX ---
-    "source_address": "0.0.0.0",
-    
     "nocheckcertificate": True,
     "ignoreerrors": False,
     "no_warnings": True,
-    "user_agent": "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36",
+    "source_address": "0.0.0.0",
 }
+
+# Environment Specific Overrides
+if sys.platform != "win32":
+    # --- SERVER (LINUX) SETTINGS ---
+    print("[INFO] Linux detected: Enabling OAuth2 TV Login")
+    yt_dlp_options.update({
+        "quiet": False,   # Must be False to see the code
+        "logger": MyLogger(), # Use custom logger to catch the code
+        "cachedir": False,    # Disable cache to force fresh login
+        "username": "oauth2", # Triggers TV Login Flow
+        "password": "",
+        # NOTE: We do NOT force 'player_client' here. 
+        # OAuth2 automatically uses the 'TV' client.
+    })
+else:
+    # --- PC (WINDOWS) SETTINGS ---
+    print("[INFO] Windows detected: Using Anonymous Creator Bypass")
+    yt_dlp_options.update({
+        "quiet": True,
+        "extractor_args": {"youtube": {"player_client": ["android_creator"]}},
+        "user_agent": "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36",
+    })
 
 async def extract_info_async(url: str):
     def blocking():
