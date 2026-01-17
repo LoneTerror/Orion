@@ -57,20 +57,30 @@ sp = spotipy.Spotify(client_credentials_manager=SpotifyClientCredentials(
     client_secret=SPOTIPY_CLIENT_SECRET
 ))
 
+# --- SMART CONFIGURATION (Auto-Detects Environment) ---
+# Windows = Residential IP = Works best Anonymously (No Cookies)
+# Linux = Datacenter IP = Needs Cookies to prove humanity
+use_cookies = "cookies.txt" if sys.platform != "win32" else None
+
 yt_dlp_options = {
     "format": "bestaudio/best",
     "quiet": True,
     "noplaylist": True,
     "default_search": "auto",
     "extract_flat": False,
-    "cookiefile": "cookies.txt",
     
-    # "android_creator" mimics the YouTube Studio app, bypassing the standard playback throttling
+    # DYNAMIC COOKIE LOADING
+    # If on Windows, this is None (Disabled). 
+    # If on Linux/Server, this is "cookies.txt" (Enabled).
+    "cookiefile": use_cookies,
+    
+    # --- CREATOR CLIENT BYPASS ---
     "extractor_args": {"youtube": {"player_client": ["android_creator"]}},
     
-    # Force IPv4 to fix 403 errors if the ISP's IPv6 range is flagged by YouTube
+    # --- NETWORK FIX ---
     "source_address": "0.0.0.0",
     
+    # --- ANTI-BLOCK SETTINGS ---
     "nocheckcertificate": True,
     "ignoreerrors": False,
     "no_warnings": True,
