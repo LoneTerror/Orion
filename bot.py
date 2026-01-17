@@ -57,10 +57,21 @@ sp = spotipy.Spotify(client_credentials_manager=SpotifyClientCredentials(
     client_secret=SPOTIPY_CLIENT_SECRET
 ))
 
-# --- SMART CONFIGURATION (Auto-Detects Environment) ---
-# Windows = Residential IP = Works best Anonymously (No Cookies)
-# Linux = Datacenter IP = Needs Cookies to prove humanity
-use_cookies = "cookies.txt" if sys.platform != "win32" else None
+# --- SMART CONFIGURATION (OAuth2 for Server, Anonymous for PC) ---
+# Windows = Residential IP = Works best Anonymously
+# Linux = Datacenter IP = Needs OAuth2 to prove humanity
+
+if sys.platform != "win32":
+    # Server Mode: Use OAuth2
+    print("[INFO] Linux detected: Enabling OAuth2 authentication")
+    auth_options = {
+        "username": "oauth2",
+        "password": ""
+    }
+else:
+    # Windows Mode: Use Anonymous Android Bypass
+    print("[INFO] Windows detected: Using Anonymous Bypass")
+    auth_options = {}
 
 yt_dlp_options = {
     "format": "bestaudio/best",
@@ -69,10 +80,8 @@ yt_dlp_options = {
     "default_search": "auto",
     "extract_flat": False,
     
-    # DYNAMIC COOKIE LOADING
-    # If on Windows, this is None (Disabled). 
-    # If on Linux/Server, this is "cookies.txt" (Enabled).
-    "cookiefile": use_cookies,
+    # Inject the Dynamic Auth Options
+    **auth_options,
     
     # --- CREATOR CLIENT BYPASS ---
     "extractor_args": {"youtube": {"player_client": ["android_creator"]}},
@@ -80,7 +89,6 @@ yt_dlp_options = {
     # --- NETWORK FIX ---
     "source_address": "0.0.0.0",
     
-    # --- ANTI-BLOCK SETTINGS ---
     "nocheckcertificate": True,
     "ignoreerrors": False,
     "no_warnings": True,
