@@ -63,6 +63,7 @@ yt_dlp_options = {
     "noplaylist": True,
     "default_search": "auto",
     "extract_flat": False,
+    "cookiefile": "cookies.txt",
     
     # "android_creator" mimics the YouTube Studio app, bypassing the standard playback throttling
     "extractor_args": {"youtube": {"player_client": ["android_creator"]}},
