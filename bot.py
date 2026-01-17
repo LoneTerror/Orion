@@ -1,10 +1,19 @@
+# --- SYSTEM PATH FIX (MUST BE AT THE VERY TOP) ---
+import os
+import sys
+
+# Manually force Node.js into the system PATH before loading yt-dlp
+# This fixes the "No supported JavaScript runtime" warning
+node_path = r"C:\Program Files\nodejs"
+if node_path not in os.environ["PATH"]:
+    os.environ["PATH"] = node_path + os.pathsep + os.environ["PATH"]
+
 # --- Import Libraries ---
 import asyncio
 import discord
 from discord import app_commands
 from discord.ext import commands
 import yt_dlp
-import os
 from dotenv import load_dotenv
 import concurrent.futures
 import aiohttp
@@ -37,11 +46,8 @@ intents.message_content = True
 intents.voice_states = True
 intents.guilds = True
 
-# UPDATED: Bot initialization for slash commands
+# Bot initialization
 bot = commands.Bot(command_prefix=" ", intents=intents)
-
-# REMOVED: The line "tree = app_commands.CommandTree(bot)" is no longer needed.
-# The bot creates its own tree at "bot.tree".
 
 # --- Globals ---
 music_queues = {}
@@ -59,13 +65,30 @@ sp = spotipy.Spotify(client_credentials_manager=SpotifyClientCredentials(
     client_secret=SPOTIPY_CLIENT_SECRET
 ))
 
+
+# --- FINAL CONFIGURATION (Creator Client + IPv4) ---
 yt_dlp_options = {
     "format": "bestaudio/best",
     "quiet": True,
     "noplaylist": True,
     "default_search": "auto",
     "extract_flat": False,
-    "cookiefile": "cookies.txt"
+    # "cookiefile": "cookies.txt",  # DISABLED: Let's run clean first.
+    
+    # --- CREATOR CLIENT BYPASS ---
+    # "android_creator" mimics the YouTube Studio app.
+    # It often bypasses the playback throttling completely.
+    "extractor_args": {"youtube": {"player_client": ["android_creator"]}},
+    
+    # --- NETWORK FIX ---
+    # Force IPv4. This fixes 403 errors if your ISP's IPv6 range is flagged.
+    "source_address": "0.0.0.0",
+    
+    # --- ANTI-BLOCK SETTINGS ---
+    "nocheckcertificate": True,
+    "ignoreerrors": False,
+    "no_warnings": True,
+    "user_agent": "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36",
 }
 
 async def extract_info_async(url: str):
@@ -155,45 +178,35 @@ async def search_youtube_video(query):
                 return f"https://www.youtube.com/watch?v={video_id}"
             return None
         
-        
 async def get_spotify_track_info(spotify_url):
     try:
         if "track" in spotify_url:
             track_id = spotify_url.split('/')[-1].split('?')[0]
             track = sp.track(track_id)
-            # Add "audio" to the search query for single tracks
             return f"{track['name']} {track['artists'][0]['name']} audio"
             
         elif "album" in spotify_url:
             album_id = spotify_url.split('/')[-1].split('?')[0]
             album_tracks = sp.album_tracks(album_id)
-            # Add "audio" to the search query for album tracks
             return [f"{item['name']} {item['artists'][0]['name']} audio" for item in album_tracks['items']]
 
         elif "playlist" in spotify_url:
             playlist_id = spotify_url.split('/')[-1].split('?')[0]
             track_list = []
-            
             response = sp.playlist_items(playlist_id)
-            
             while True:
                 for item in response['items']:
                     if item.get('track') and item['track'].get('name') and item['track'].get('artists'):
                         track = item['track']
-                        # Add "audio" to the search query for playlist tracks
                         track_list.append(f"{track['name']} {track['artists'][0]['name']} audio")
-                
                 if response['next']:
                     response = sp.next(response)
                 else:
                     break
-                    
             return track_list
-            
     except Exception as e:
         print(f"[ERROR] Could not get Spotify track info for {spotify_url}: {e}")
     return None
-
 
 # --- Playback Functions ---
 def play_next_callback(ctx, error):
@@ -253,7 +266,6 @@ async def play_next(ctx):
         except (discord.errors.NotFound, AttributeError):
             pass
 
-    # CHANGE 1: Check if the queue is empty and if queue loop is on.
     if not music_queues.get(guild_id):
         if loop_queue_states.get(guild_id, False):
             history = played_songs.get(guild_id, [])
@@ -261,7 +273,6 @@ async def play_next(ctx):
                 music_queues[guild_id] = history.copy()
                 played_songs[guild_id] = [] 
         else:
-            # If no loop, clear all session data and send a final message.
             current_song_info.pop(guild_id, None)
             played_songs.pop(guild_id, None) 
             await ctx.send("The queue has finished. Add more songs or use `/disconnect`.")
@@ -271,7 +282,6 @@ async def play_next(ctx):
         song_data = music_queues[guild_id].pop(0)
         current_song_info[guild_id] = song_data
 
-        # CHANGE 2: Add the currently playing song to the history.
         if guild_id not in played_songs:
             played_songs[guild_id] = []
         played_songs[guild_id].append(song_data)
@@ -303,7 +313,6 @@ async def play_next(ctx):
             })
 
             progress_bar = create_progress_bar(0, duration)
-
             duration_str = format_time(duration) if duration else "LIVE"
 
             description_text = (
@@ -343,7 +352,6 @@ async def play_next(ctx):
         await ctx.send("The queue has finished. Add more songs or use `/disconnect`.")
 
 async def queue_playlist_tracks_background(interaction, entries, guild_id, requester_info, playlist_title):
-    """Asynchronously queues the remaining tracks from a YouTube/SoundCloud playlist."""
     urls_to_add = []
     for entry in entries:
         title = entry.get('title', 'Unknown Title')
@@ -351,16 +359,13 @@ async def queue_playlist_tracks_background(interaction, entries, guild_id, reque
 
     if urls_to_add:
         music_queues[guild_id].extend(urls_to_add)
-        # Send a quiet followup message to confirm the background task is done.
         await interaction.followup.send(f"✅ Finished queuing {len(urls_to_add)} more tracks from **{playlist_title}**.", ephemeral=True)
 
 async def queue_spotify_tracks_background(interaction, track_queries, guild_id, requester_info):
-    """Asynchronously searches YouTube for Spotify tracks and queues them."""
     urls_to_add = []
     for track_query in track_queries:
         youtube_url = await search_youtube_video(track_query)
         if youtube_url:
-            # Use the Spotify track name as the title for speed, which is good enough for the queue.
             urls_to_add.append({'url': youtube_url, 'title': track_query, 'requester': requester_info})
 
     if urls_to_add:
@@ -370,10 +375,12 @@ async def queue_spotify_tracks_background(interaction, track_queries, guild_id, 
 # --- Events ---
 @bot.event
 async def on_ready():
-    await bot.tree.sync()
     print(f'[INFO] Logged in as {bot.user} (ID: {bot.user.id})')
-    # CORRECTED: Use bot.tree to fetch commands
-    print(f'[INFO] Synced {len(await bot.tree.fetch_commands())} slash commands.')
+    try:
+        synced = await bot.tree.sync()
+        print(f'[INFO] Synced {len(synced)} slash commands globally.')
+    except Exception as e:
+        print(f"[ERROR] Failed to sync commands: {e}")
 
 @bot.event
 async def on_voice_state_update(member, before, after):
@@ -403,38 +410,30 @@ async def on_interaction(interaction: discord.Interaction):
         await interaction.response.send_message("I'm not connected to a voice channel.", ephemeral=True)
         return
 
-
     if custom_id == "pause":
         if vc.is_playing():
             vc.pause()
             await interaction.response.send_message("Paused.", ephemeral=True)
         else:
             await interaction.response.send_message("Nothing is playing.", ephemeral=True)
-
-
     elif custom_id == "resume":
         if vc.is_paused():
             vc.resume()
             await interaction.response.send_message("Resumed.", ephemeral=True)
         else:
             await interaction.response.send_message("Already playing.", ephemeral=True)
-
-
     elif custom_id == "skip":
         if vc.is_playing() or vc.is_paused():
             vc.stop()
             await interaction.response.send_message("Skipped.", ephemeral=True)
         else:
             await interaction.response.send_message("Nothing to skip.", ephemeral=True)
-
-
     elif custom_id == "queue":
         await interaction.response.defer(ephemeral=True)
         guild_id = interaction.guild.id
         queue = music_queues.get(guild_id, [])
         description = ""
         if queue:
-            # FIXED: Read the pre-fetched title directly from the item dictionary
             description = "\n".join(f"**{i+1}.** {item['title']}" for i, item in enumerate(queue[:10]))
             if len(queue) > 10:
                 description += f"\n... and {len(queue) - 10} more."
@@ -442,8 +441,6 @@ async def on_interaction(interaction: discord.Interaction):
             description = "The queue is empty."
         embed = discord.Embed(title="🎶 Current Queue", description=description, color=discord.Color.blue())
         await interaction.followup.send(embed=embed, ephemeral=True)
-
-
     elif custom_id == "disconnect":
         guild_id = interaction.guild.id
         music_queues.pop(guild_id, None)
@@ -460,13 +457,10 @@ async def on_interaction(interaction: discord.Interaction):
         await interaction.response.send_message("Disconnected and cleared the queue.", ephemeral=True)
 
 # --- Slash Commands ---
-
 @bot.tree.command(name="ping", description="Replies with pong!")
 async def ping(interaction: discord.Interaction):
     await interaction.response.send_message(f"Pong! Latency: {round(bot.latency * 1000)}ms")
 
-
- 
 @bot.tree.command(name="play", description="Plays a song or playlist from YouTube, Spotify, etc.")
 @app_commands.describe(search_term="The URL or name of the song/playlist.")
 async def play(interaction: discord.Interaction, search_term: str):
@@ -502,7 +496,7 @@ async def play(interaction: discord.Interaction, search_term: str):
     try:
         loop = asyncio.get_event_loop()
 
-        # --- Spotify Playlist/Album Logic ---
+        # --- Spotify Logic ---
         if SPOTIFY_URL_REGEX.match(search_term):
             spotify_info = await get_spotify_track_info(search_term)
             
@@ -510,36 +504,26 @@ async def play(interaction: discord.Interaction, search_term: str):
                 if not spotify_info:
                     await interaction.edit_original_response(content="This Spotify playlist/album appears to be empty or private.", ephemeral=True)
                     return
-
-                # 1. Immediately process the first track
                 first_track_query = spotify_info.pop(0)
                 youtube_url = await search_youtube_video(first_track_query)
-                
                 if not youtube_url:
-                    await interaction.edit_original_response(content=f"Couldn't find the first track '{first_track_query}' on YouTube. Aborting.")
+                    await interaction.edit_original_response(content=f"Couldn't find the first track '{first_track_query}' on YouTube.")
                     return
-
                 title = await extract_title(youtube_url)
                 music_queues[guild_id].append({'url': youtube_url, 'title': title, 'requester': requester_info})
-                
                 await interaction.edit_original_response(content=f"▶️ Playing first song from Spotify. Queuing the rest in the background...")
-                
-                # 2. Start the background task for the rest
                 if spotify_info:
                     bot.loop.create_task(queue_spotify_tracks_background(interaction, spotify_info, guild_id, requester_info))
-
-                # 3. Start playback if the bot is idle
                 if not vc.is_playing() and not vc.is_paused():
                     await play_next(ctx)
-                return # End execution here for Spotify playlists
-
+                return
             elif isinstance(spotify_info, str):
                 search_term = await search_youtube_video(spotify_info)
                 if not search_term:
                     await interaction.edit_original_response(content=f"Could not find `{spotify_info}` on YouTube.")
                     return
 
-        # --- Generic Search / YouTube / SoundCloud Logic ---
+        # --- YouTube/SoundCloud Logic ---
         if not YOUTUBE_URL_REGEX.match(search_term) and not SOUNDCLOUD_URL_REGEX.match(search_term):
             url = await search_youtube_video(search_term)
             if not url:
@@ -552,37 +536,26 @@ async def play(interaction: discord.Interaction, search_term: str):
         info = await loop.run_in_executor(executor, lambda: ydl.extract_info(search_term, download=False))
         
         if not info:
-            await interaction.edit_original_response(content="Could not retrieve any information from the link.")
+            await interaction.edit_original_response(content="Could not retrieve information from the link.")
             return
 
-        # --- YouTube/SoundCloud Playlist Logic ---
         if 'entries' in info:
             valid_entries = [entry for entry in info['entries'] if entry and entry.get('url')]
             if not valid_entries:
-                await interaction.edit_original_response(content="Could not find any playable tracks in the playlist.")
+                await interaction.edit_original_response(content="Could not find playable tracks in the playlist.")
                 return
-
             playlist_title = info.get('title', 'playlist')
-            
-            # 1. Immediately process the first track
             first_entry = valid_entries.pop(0)
             music_queues[guild_id].append({
                 'url': first_entry['url'],
                 'title': first_entry.get('title', 'Unknown Title'),
                 'requester': requester_info
             })
-            
             await interaction.edit_original_response(content=f"▶️ Playing first song from **{playlist_title}**. Queuing the rest in the background...")
-            
-            # 2. Start the background task for the rest
             if valid_entries:
                 bot.loop.create_task(queue_playlist_tracks_background(interaction, valid_entries, guild_id, requester_info, playlist_title))
-            
-            # 3. Start playback if the bot is idle
             if not vc.is_playing() and not vc.is_paused():
                 await play_next(ctx)
-        
-        # --- Single Track Logic ---
         else:
             title = info.get('title', 'Unknown Title')
             music_queues[guild_id].append({
@@ -591,10 +564,8 @@ async def play(interaction: discord.Interaction, search_term: str):
                 'requester': requester_info
             })
             await interaction.edit_original_response(content=f"✅ Added `{title}` to the queue.")
-
             if not vc.is_playing() and not vc.is_paused():
                 await play_next(ctx)
-
     except Exception as e:
         print(f"[ERROR] Generic error in /play command: {e}")
         if not interaction.response.is_done():
@@ -602,8 +573,6 @@ async def play(interaction: discord.Interaction, search_term: str):
         else:
             await interaction.followup.send(content=f"An unexpected error occurred: {e}", ephemeral=True)   
 
-
-# --- Highlighted Comment: Replace your old /loop command with this new one. ---
 @bot.tree.command(name="loop", description="Sets the loop mode for the player.")
 @app_commands.choices(mode=[
     app_commands.Choice(name="Song (On)", value="song_on"),
@@ -620,31 +589,23 @@ async def loop(interaction: discord.Interaction, mode: app_commands.Choice[str])
         if not vc or not (vc.is_playing() or vc.is_paused()):
             await interaction.response.send_message("A song must be playing to enable song loop.", ephemeral=True)
             return
-        # Enable song loop, disable queue loop
         loop_states[guild_id] = True
         loop_queue_states[guild_id] = False 
         await interaction.response.send_message("🔁 Looping the current **song** is now **ON**.", ephemeral=True)
-
     elif mode.value == "song_off":
         loop_states[guild_id] = False
         await interaction.response.send_message("Looping the current song is now **OFF**.", ephemeral=True)
-
     elif mode.value == "queue_on":
-        # Enable queue loop, disable song loop
         loop_queue_states[guild_id] = True
         loop_states[guild_id] = False
         await interaction.response.send_message("🔁 Looping the entire **queue** is now **ON**.", ephemeral=True)
-
     elif mode.value == "queue_off":
         loop_queue_states[guild_id] = False
         await interaction.response.send_message("Looping the queue is now **OFF**.", ephemeral=True)
-
     elif mode.value == "off":
-        # Disable all looping
         loop_states[guild_id] = False
         loop_queue_states[guild_id] = False
         await interaction.response.send_message("All looping is now **disabled**.", ephemeral=True)
-
 
 @bot.tree.command(name="disconnect", description="Disconnects the bot from the voice channel and clears the queue.")
 async def disconnect(interaction: discord.Interaction):
@@ -693,7 +654,6 @@ async def queue(interaction: discord.Interaction):
 
     if queue_items:
         description += "**__Up Next:__**\n"
-        # FIXED: Read the pre-fetched title directly from the item dictionary
         description += "\n".join(f"**{i+1}.** {item['title']} - *Requested by {item['requester']['mention']}*" for i, item in enumerate(queue_items[:10]))
         if len(queue_items) > 10:
             description += f"\n... and {len(queue_items) - 10} more."
