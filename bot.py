@@ -75,39 +75,41 @@ class MyLogger:
     def error(self, msg):
         print(f"[YTDLP-ERROR] {msg}")
 
-# Base Options (Common settings)
-yt_dlp_options = {
-    "format": "bestaudio/best",
-    "noplaylist": True,
-    "default_search": "auto",
-    "extract_flat": False,
-    "nocheckcertificate": True,
-    "ignoreerrors": False,
-    "no_warnings": True,
-    "source_address": "0.0.0.0",
-}
+# --- SMART CONFIGURATION (Simple & Robust) ---
 
-# Environment Specific Overrides
 if sys.platform != "win32":
     # --- SERVER (LINUX) SETTINGS ---
-    print("[INFO] Linux detected: Enabling OAuth2 TV Login")
-    yt_dlp_options.update({
-        "quiet": False,   # Must be False to see the code
-        "logger": MyLogger(), # Use custom logger to catch the code
+    print("[INFO] Linux detected: Enabling OAuth2 and Verbose Logging")
+    # OAuth2 Options
+    yt_dlp_options = {
+        "format": "bestaudio/best",
+        "quiet": False,   # ENABLE LOGS so you can see the Auth Code
+        "noplaylist": True,
+        "default_search": "auto",
+        "extract_flat": False,
         "cachedir": False,    # Disable cache to force fresh login
         "username": "oauth2", # Triggers TV Login Flow
         "password": "",
-        # NOTE: We do NOT force 'player_client' here. 
-        # OAuth2 automatically uses the 'TV' client.
-    })
+        "nocheckcertificate": True,
+        "ignoreerrors": False,
+        "no_warnings": True,
+        "source_address": "0.0.0.0",
+    }
 else:
     # --- PC (WINDOWS) SETTINGS ---
     print("[INFO] Windows detected: Using Anonymous Creator Bypass")
-    yt_dlp_options.update({
+    yt_dlp_options = {
+        "format": "bestaudio/best",
         "quiet": True,
+        "noplaylist": True,
+        "default_search": "auto",
+        "extract_flat": False,
         "extractor_args": {"youtube": {"player_client": ["android_creator"]}},
+        "nocheckcertificate": True,
+        "ignoreerrors": False,
+        "no_warnings": True,
         "user_agent": "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36",
-    })
+    }
 
 async def extract_info_async(url: str):
     def blocking():
