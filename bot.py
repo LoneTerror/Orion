@@ -1,14 +1,11 @@
-# --- SYSTEM PATH FIX (MUST BE AT THE VERY TOP) ---
 import os
 import sys
 
-# Manually force Node.js into the system PATH before loading yt-dlp
-# This fixes the "No supported JavaScript runtime" warning
+# Manually force Node.js into the system PATH to fix "No supported JavaScript runtime" warning
 node_path = r"C:\Program Files\nodejs"
 if node_path not in os.environ["PATH"]:
     os.environ["PATH"] = node_path + os.pathsep + os.environ["PATH"]
 
-# --- Import Libraries ---
 import asyncio
 import discord
 from discord import app_commands
@@ -24,15 +21,13 @@ from datetime import datetime
 import spotipy
 from spotipy.oauth2 import SpotifyClientCredentials
 
-# Load environment variables
 load_dotenv()
 
-# --- Fix yt_dlp bug_reports_message lambda issue ---
+# Suppress yt-dlp bug report messages to keep console clean
 def no_bug_report_message(*args, **kwargs):
     return ''
 yt_dlp.utils.bug_reports_message = no_bug_report_message
 
-# --- Configuration ---
 TOKEN = os.getenv('DISCORD_BOT_TOKEN')
 YOUTUBE_API_KEY = os.getenv('YOUTUBE_API_KEY')
 SPOTIPY_CLIENT_ID = os.getenv('SPOTIPY_CLIENT_ID')
@@ -46,10 +41,8 @@ intents.message_content = True
 intents.voice_states = True
 intents.guilds = True
 
-# Bot initialization
 bot = commands.Bot(command_prefix=" ", intents=intents)
 
-# --- Globals ---
 music_queues = {}
 loop_states = {}
 loop_queue_states = {}
@@ -59,32 +52,24 @@ context_for_guild = {}
 current_playing_messages = {}
 executor = concurrent.futures.ThreadPoolExecutor()
 
-# Spotify Client Manager
 sp = spotipy.Spotify(client_credentials_manager=SpotifyClientCredentials(
     client_id=SPOTIPY_CLIENT_ID,
     client_secret=SPOTIPY_CLIENT_SECRET
 ))
 
-
-# --- FINAL CONFIGURATION (Creator Client + IPv4) ---
 yt_dlp_options = {
     "format": "bestaudio/best",
     "quiet": True,
     "noplaylist": True,
     "default_search": "auto",
     "extract_flat": False,
-    # "cookiefile": "cookies.txt",  # DISABLED: Let's run clean first.
     
-    # --- CREATOR CLIENT BYPASS ---
-    # "android_creator" mimics the YouTube Studio app.
-    # It often bypasses the playback throttling completely.
+    # "android_creator" mimics the YouTube Studio app, bypassing the standard playback throttling
     "extractor_args": {"youtube": {"player_client": ["android_creator"]}},
     
-    # --- NETWORK FIX ---
-    # Force IPv4. This fixes 403 errors if your ISP's IPv6 range is flagged.
+    # Force IPv4 to fix 403 errors if the ISP's IPv6 range is flagged by YouTube
     "source_address": "0.0.0.0",
     
-    # --- ANTI-BLOCK SETTINGS ---
     "nocheckcertificate": True,
     "ignoreerrors": False,
     "no_warnings": True,
@@ -102,7 +87,6 @@ ffmpeg_options = {
     'options': '-vn'
 }
 
-# --- Logging Helper Functions ---
 def log_to_json(file_path, data):
     try:
         with open(file_path, 'r', encoding='utf-8') as f:
@@ -138,7 +122,6 @@ def log_event(event_data):
     print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] EVENT: {log_entry['user_name']} triggered {log_entry['event_type']} in '{log_entry['guild_name']}'")
     log_to_json(EVENT_LOG_FILE, log_entry)
 
-# --- Helper Functions ---
 def create_progress_bar(current_sec, total_sec, bar_length=20):
     if total_sec is None or total_sec == 0:
         return "LIVE"
@@ -162,12 +145,10 @@ async def extract_title(url: str):
     except Exception:
         return url
 
-# --- Regex for URL detection ---
 YOUTUBE_URL_REGEX = re.compile(r"(https?://)?(www\.)?(youtube\.com|youtu\.be)/.+")
 SOUNDCLOUD_URL_REGEX = re.compile(r"https?://(www\.)?soundcloud\.com/.+")
 SPOTIFY_URL_REGEX = re.compile(r"https://open\.spotify\.com/(track|album|playlist)/[a-zA-Z0-9]+")
 
-# --- API Search Functions ---
 async def search_youtube_video(query):
     async with aiohttp.ClientSession() as session:
         params = {"part": "snippet", "q": query, "type": "video", "maxResults": 1, "key": YOUTUBE_API_KEY}
@@ -208,7 +189,6 @@ async def get_spotify_track_info(spotify_url):
         print(f"[ERROR] Could not get Spotify track info for {spotify_url}: {e}")
     return None
 
-# --- Playback Functions ---
 def play_next_callback(ctx, error):
     if error:
         print(f"[DEBUG] Player error: {error}")
@@ -372,7 +352,6 @@ async def queue_spotify_tracks_background(interaction, track_queries, guild_id, 
         music_queues[guild_id].extend(urls_to_add)
         await interaction.followup.send(f"✅ Finished queuing {len(urls_to_add)} more tracks from Spotify.", ephemeral=True)
 
-# --- Events ---
 @bot.event
 async def on_ready():
     print(f'[INFO] Logged in as {bot.user} (ID: {bot.user.id})')
@@ -456,7 +435,6 @@ async def on_interaction(interaction: discord.Interaction):
         await vc.disconnect()
         await interaction.response.send_message("Disconnected and cleared the queue.", ephemeral=True)
 
-# --- Slash Commands ---
 @bot.tree.command(name="ping", description="Replies with pong!")
 async def ping(interaction: discord.Interaction):
     await interaction.response.send_message(f"Pong! Latency: {round(bot.latency * 1000)}ms")
@@ -496,7 +474,6 @@ async def play(interaction: discord.Interaction, search_term: str):
     try:
         loop = asyncio.get_event_loop()
 
-        # --- Spotify Logic ---
         if SPOTIFY_URL_REGEX.match(search_term):
             spotify_info = await get_spotify_track_info(search_term)
             
@@ -523,7 +500,6 @@ async def play(interaction: discord.Interaction, search_term: str):
                     await interaction.edit_original_response(content=f"Could not find `{spotify_info}` on YouTube.")
                     return
 
-        # --- YouTube/SoundCloud Logic ---
         if not YOUTUBE_URL_REGEX.match(search_term) and not SOUNDCLOUD_URL_REGEX.match(search_term):
             url = await search_youtube_video(search_term)
             if not url:
@@ -663,7 +639,6 @@ async def queue(interaction: discord.Interaction):
     embed = discord.Embed(title="🎶 Music Queue", description=description, color=discord.Color.blue())
     await interaction.followup.send(embed=embed, ephemeral=True)
 
-# --- Run Bot ---
 if __name__ == '__main__':
     try:
         bot.run(TOKEN)
