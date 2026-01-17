@@ -57,39 +57,33 @@ sp = spotipy.Spotify(client_credentials_manager=SpotifyClientCredentials(
     client_secret=SPOTIPY_CLIENT_SECRET
 ))
 
-# --- SMART CONFIGURATION (Strict Separation) ---
+# --- SMART CONFIGURATION (Hybrid: Cookies for Server, Anonymous for PC) ---
+import shutil
 
-# Define a custom logger to FORCE printing the auth code to Pterodactyl console
-class MyLogger:
-    def debug(self, msg):
-        # We only care about the Auth Code messages
-        if "device" in msg.lower() or "code" in msg.lower() or "authenticate" in msg.lower():
-            print(f"\n\n[AUTH REQUIRED] {msg}\n\n")
-        elif not msg.startswith('[debug] '):
-            # Print other non-debug info
-            print(f"[YTDLP] {msg}")
-
-    def warning(self, msg):
-        print(f"[YTDLP-WARN] {msg}")
-
-    def error(self, msg):
-        print(f"[YTDLP-ERROR] {msg}")
-
-# --- SMART CONFIGURATION (Simple & Robust) ---
+# Debug: Check if Node is visible to Python
+node_location = shutil.which('node')
+print(f"[DEBUG] Node.js location detected by Python: {node_location}")
 
 if sys.platform != "win32":
     # --- SERVER (LINUX) SETTINGS ---
-    print("[INFO] Linux detected: Enabling OAuth2 and Verbose Logging")
-    # OAuth2 Options
+    print("[INFO] Linux detected: Using 'cookies.txt' for Authentication")
+    
+    # Check if cookies exist, warn if missing
+    if not os.path.exists("cookies.txt"):
+        print("[WARNING] cookies.txt not found! Server playback will likely fail with 'Sign in' errors.")
+    
     yt_dlp_options = {
         "format": "bestaudio/best",
-        "quiet": False,   # ENABLE LOGS so you can see the Auth Code
+        "quiet": True,
         "noplaylist": True,
         "default_search": "auto",
         "extract_flat": False,
-        "cachedir": False,    # Disable cache to force fresh login
-        "username": "oauth2", # Triggers TV Login Flow
-        "password": "",
+        
+        # SERVER STRATEGY: Use Cookies + Standard Web Client
+        # The 'web' client is the most stable when authenticated with cookies.
+        "cookiefile": "cookies.txt", 
+        "extractor_args": {"youtube": {"player_client": ["web"]}},
+        
         "nocheckcertificate": True,
         "ignoreerrors": False,
         "no_warnings": True,
@@ -104,7 +98,12 @@ else:
         "noplaylist": True,
         "default_search": "auto",
         "extract_flat": False,
+        
+        # PC STRATEGY: No Cookies + Android Creator
+        # Works great on residential IPs without logging in.
+        "cookiefile": None,
         "extractor_args": {"youtube": {"player_client": ["android_creator"]}},
+        
         "nocheckcertificate": True,
         "ignoreerrors": False,
         "no_warnings": True,
