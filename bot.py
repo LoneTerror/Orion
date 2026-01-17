@@ -1,11 +1,14 @@
+# --- SYSTEM PATH FIX (MUST BE AT THE VERY TOP) ---
 import os
 import sys
+import shutil
 
-# Manually force Node.js into the system PATH to fix "No supported JavaScript runtime" warning
+# Manually force Node.js into the system PATH (Windows Fix)
 node_path = r"C:\Program Files\nodejs"
 if node_path not in os.environ["PATH"]:
     os.environ["PATH"] = node_path + os.pathsep + os.environ["PATH"]
 
+# --- Import Libraries ---
 import asyncio
 import discord
 from discord import app_commands
@@ -21,13 +24,15 @@ from datetime import datetime
 import spotipy
 from spotipy.oauth2 import SpotifyClientCredentials
 
+# Load environment variables
 load_dotenv()
 
-# Suppress yt-dlp bug report messages to keep console clean
+# --- Fix yt_dlp bug_reports_message lambda issue ---
 def no_bug_report_message(*args, **kwargs):
     return ''
 yt_dlp.utils.bug_reports_message = no_bug_report_message
 
+# --- Configuration ---
 TOKEN = os.getenv('DISCORD_BOT_TOKEN')
 YOUTUBE_API_KEY = os.getenv('YOUTUBE_API_KEY')
 SPOTIPY_CLIENT_ID = os.getenv('SPOTIPY_CLIENT_ID')
@@ -43,34 +48,18 @@ intents.guilds = True
 
 bot = commands.Bot(command_prefix=" ", intents=intents)
 
-music_queues = {}
-loop_states = {}
-loop_queue_states = {}
-played_songs = {}
-current_song_info = {}
-context_for_guild = {}
-current_playing_messages = {}
-executor = concurrent.futures.ThreadPoolExecutor()
-
-sp = spotipy.Spotify(client_credentials_manager=SpotifyClientCredentials(
-    client_id=SPOTIPY_CLIENT_ID,
-    client_secret=SPOTIPY_CLIENT_SECRET
-))
-
-# --- SMART CONFIGURATION (Hybrid: Cookies for Server, Anonymous for PC) ---
-import shutil
-
+# --- SMART CONFIGURATION (Hybrid: iOS for Server, Anonymous for PC) ---
 # Debug: Check if Node is visible to Python
 node_location = shutil.which('node')
 print(f"[DEBUG] Node.js location detected by Python: {node_location}")
 
 if sys.platform != "win32":
     # --- SERVER (LINUX) SETTINGS ---
-    print("[INFO] Linux detected: Using 'cookies.txt' for Authentication")
+    print("[INFO] Linux detected: Using 'cookies.txt' + iOS Client")
     
-    # Check if cookies exist, warn if missing
+    # Check if cookies exist
     if not os.path.exists("cookies.txt"):
-        print("[WARNING] cookies.txt not found! Server playback will likely fail with 'Sign in' errors.")
+        print("[WARNING] cookies.txt not found! Playback may fail.")
     
     yt_dlp_options = {
         "format": "bestaudio/best",
@@ -79,10 +68,11 @@ if sys.platform != "win32":
         "default_search": "auto",
         "extract_flat": False,
         
-        # SERVER STRATEGY: Use Cookies + Standard Web Client
-        # The 'web' client is the most stable when authenticated with cookies.
+        # SERVER STRATEGY: Cookies + iOS
+        # iOS client uses HLS streaming which bypasses the broken JS player
+        # that YouTube serves to Datacenter IPs.
         "cookiefile": "cookies.txt", 
-        "extractor_args": {"youtube": {"player_client": ["web"]}},
+        "extractor_args": {"youtube": {"player_client": ["ios"]}},
         
         "nocheckcertificate": True,
         "ignoreerrors": False,
@@ -100,7 +90,6 @@ else:
         "extract_flat": False,
         
         # PC STRATEGY: No Cookies + Android Creator
-        # Works great on residential IPs without logging in.
         "cookiefile": None,
         "extractor_args": {"youtube": {"player_client": ["android_creator"]}},
         
@@ -109,6 +98,21 @@ else:
         "no_warnings": True,
         "user_agent": "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36",
     }
+
+# --- Standard Bot Code Below (No Changes Needed) ---
+music_queues = {}
+loop_states = {}
+loop_queue_states = {}
+played_songs = {}
+current_song_info = {}
+context_for_guild = {}
+current_playing_messages = {}
+executor = concurrent.futures.ThreadPoolExecutor()
+
+sp = spotipy.Spotify(client_credentials_manager=SpotifyClientCredentials(
+    client_id=SPOTIPY_CLIENT_ID,
+    client_secret=SPOTIPY_CLIENT_SECRET
+))
 
 async def extract_info_async(url: str):
     def blocking():
