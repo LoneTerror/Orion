@@ -3,11 +3,35 @@ import os
 import sys
 import shutil
 import random
+import glob
 
-# Manually force Node.js into the system PATH
-node_path = r"C:\Program Files\nodejs"
-if node_path not in os.environ["PATH"]:
-    os.environ["PATH"] = node_path + os.pathsep + os.environ["PATH"]
+# 1. WINDOWS FIX: Manually force Node.js path
+if sys.platform == "win32":
+    node_path = r"C:\Program Files\nodejs"
+    if node_path not in os.environ["PATH"]:
+        os.environ["PATH"] = node_path + os.pathsep + os.environ["PATH"]
+
+# 2. LINUX/PTERODACTYL FIX: Auto-Detect Local Node.js
+# The startup script installs Node, but Python doesn't always see it.
+# We find the folder manually and inject it into the PATH.
+if sys.platform != "win32":
+    # Look for any folder starting with 'node-' in the current directory
+    local_node_dirs = glob.glob(os.path.join(os.getcwd(), "node-*"))
+    if local_node_dirs:
+        # Pick the first one found (e.g., node-v20.10.0-linux-arm64)
+        node_dir = local_node_dirs[0]
+        node_bin = os.path.join(node_dir, "bin")
+        
+        # Add to PATH if valid
+        if os.path.isdir(node_bin) and node_bin not in os.environ["PATH"]:
+            print(f"[BOOT] Injecting Node.js into PATH: {node_bin}")
+            os.environ["PATH"] = node_bin + os.pathsep + os.environ["PATH"]
+            
+            # Make it executable just in case
+            try:
+                os.chmod(os.path.join(node_bin, "node"), 0o755)
+            except:
+                pass
 
 # --- Import Libraries ---
 import asyncio
@@ -36,7 +60,7 @@ TOKEN = os.getenv('DISCORD_BOT_TOKEN')
 YOUTUBE_API_KEY = os.getenv('YOUTUBE_API_KEY')
 SPOTIPY_CLIENT_ID = os.getenv('SPOTIPY_CLIENT_ID')
 SPOTIPY_CLIENT_SECRET = os.getenv('SPOTIPY_CLIENT_SECRET')
-PROXY_FILE = "proxies.txt"  # <--- NEW: File containing proxy list
+PROXY_FILE = "proxies.txt"
 
 SONG_LOG_FILE = 'song_log.json'
 EVENT_LOG_FILE = 'event_log.json'
@@ -69,8 +93,9 @@ def get_random_proxy():
     return None
 
 # --- SMART CONFIGURATION (Dynamic) ---
+# Debug: Verify Node is now visible
 node_location = shutil.which('node')
-print(f"[DEBUG] Node.js location: {node_location}")
+print(f"[DEBUG] Final Node.js location visible to Python: {node_location}")
 
 def get_ytdlp_options():
     """Generates options dynamically per-song to allow IP rotation."""
@@ -85,7 +110,6 @@ def get_ytdlp_options():
         "nocheckcertificate": True,
         "ignoreerrors": False,
         "no_warnings": True,
-        # Force IPv4 to prevent 403 errors (or use "::" for IPv6 rotation if supported)
         "source_address": "0.0.0.0", 
     }
 
@@ -100,8 +124,8 @@ def get_ytdlp_options():
         if os.path.exists("cookies.txt"):
             opts["cookiefile"] = "cookies.txt"
         
-        # Use iOS client to bypass JS player blocking
-        opts["extractor_args"] = {"youtube": {"player_client": ["ios"]}}
+        # We try 'android' first with proxies as it often works better than iOS on proxies
+        opts["extractor_args"] = {"youtube": {"player_client": ["android", "ios"]}}
     else:
         # PC (WINDOWS): Anonymous + Android Client
         opts["cookiefile"] = None
