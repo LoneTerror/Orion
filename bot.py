@@ -2,8 +2,9 @@
 import os
 import sys
 import shutil
+import random
 
-# Manually force Node.js into the system PATH (Windows Fix)
+# Manually force Node.js into the system PATH
 node_path = r"C:\Program Files\nodejs"
 if node_path not in os.environ["PATH"]:
     os.environ["PATH"] = node_path + os.pathsep + os.environ["PATH"]
@@ -24,10 +25,8 @@ from datetime import datetime
 import spotipy
 from spotipy.oauth2 import SpotifyClientCredentials
 
-# Load environment variables
 load_dotenv()
 
-# --- Fix yt_dlp bug_reports_message lambda issue ---
 def no_bug_report_message(*args, **kwargs):
     return ''
 yt_dlp.utils.bug_reports_message = no_bug_report_message
@@ -37,6 +36,7 @@ TOKEN = os.getenv('DISCORD_BOT_TOKEN')
 YOUTUBE_API_KEY = os.getenv('YOUTUBE_API_KEY')
 SPOTIPY_CLIENT_ID = os.getenv('SPOTIPY_CLIENT_ID')
 SPOTIPY_CLIENT_SECRET = os.getenv('SPOTIPY_CLIENT_SECRET')
+PROXY_FILE = "proxies.txt"  # <--- NEW: File containing proxy list
 
 SONG_LOG_FILE = 'song_log.json'
 EVENT_LOG_FILE = 'event_log.json'
@@ -48,58 +48,69 @@ intents.guilds = True
 
 bot = commands.Bot(command_prefix=" ", intents=intents)
 
-# --- SMART CONFIGURATION (Hybrid: iOS for Server, Anonymous for PC) ---
-# Debug: Check if Node is visible to Python
+# --- HELPER: PROXY ROTATOR ---
+def get_random_proxy():
+    """Reads proxies.txt and returns a random proxy URL, or None if empty."""
+    if not os.path.exists(PROXY_FILE):
+        return None
+    try:
+        with open(PROXY_FILE, 'r') as f:
+            # Filter out empty lines and comments
+            proxies = [line.strip() for line in f if line.strip() and not line.startswith("#")]
+        
+        if proxies:
+            selected = random.choice(proxies)
+            # Log safe part only (hide password in console)
+            safe_log = selected.split('@')[-1] if '@' in selected else selected
+            print(f"[PROXY] Rotating IP... Selected: {safe_log}") 
+            return selected
+    except Exception as e:
+        print(f"[ERROR] Failed to read proxy file: {e}")
+    return None
+
+# --- SMART CONFIGURATION (Dynamic) ---
 node_location = shutil.which('node')
-print(f"[DEBUG] Node.js location detected by Python: {node_location}")
+print(f"[DEBUG] Node.js location: {node_location}")
 
-if sys.platform != "win32":
-    # --- SERVER (LINUX) SETTINGS ---
-    print("[INFO] Linux detected: Using 'cookies.txt' + iOS Client")
+def get_ytdlp_options():
+    """Generates options dynamically per-song to allow IP rotation."""
     
-    # Check if cookies exist
-    if not os.path.exists("cookies.txt"):
-        print("[WARNING] cookies.txt not found! Playback may fail.")
-    
-    yt_dlp_options = {
+    # 1. Base Options
+    opts = {
         "format": "bestaudio/best",
         "quiet": True,
         "noplaylist": True,
         "default_search": "auto",
         "extract_flat": False,
-        
-        # SERVER STRATEGY: Cookies + iOS
-        # iOS client uses HLS streaming which bypasses the broken JS player
-        # that YouTube serves to Datacenter IPs.
-        "cookiefile": "cookies.txt", 
-        "extractor_args": {"youtube": {"player_client": ["ios"]}},
-        
         "nocheckcertificate": True,
         "ignoreerrors": False,
         "no_warnings": True,
-        "source_address": "0.0.0.0",
-    }
-else:
-    # --- PC (WINDOWS) SETTINGS ---
-    print("[INFO] Windows detected: Using Anonymous Creator Bypass")
-    yt_dlp_options = {
-        "format": "bestaudio/best",
-        "quiet": True,
-        "noplaylist": True,
-        "default_search": "auto",
-        "extract_flat": False,
-        
-        # PC STRATEGY: No Cookies + Android Creator
-        "cookiefile": None,
-        "extractor_args": {"youtube": {"player_client": ["android_creator"]}},
-        
-        "nocheckcertificate": True,
-        "ignoreerrors": False,
-        "no_warnings": True,
-        "user_agent": "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36",
+        # Force IPv4 to prevent 403 errors (or use "::" for IPv6 rotation if supported)
+        "source_address": "0.0.0.0", 
     }
 
-# --- Standard Bot Code Below (No Changes Needed) ---
+    # 2. Inject Random Proxy (If available)
+    proxy_url = get_random_proxy()
+    if proxy_url:
+        opts["proxy"] = proxy_url
+
+    # 3. Environment Specifics
+    if sys.platform != "win32":
+        # SERVER (LINUX): Cookies + iOS Client
+        if os.path.exists("cookies.txt"):
+            opts["cookiefile"] = "cookies.txt"
+        
+        # Use iOS client to bypass JS player blocking
+        opts["extractor_args"] = {"youtube": {"player_client": ["ios"]}}
+    else:
+        # PC (WINDOWS): Anonymous + Android Client
+        opts["cookiefile"] = None
+        opts["extractor_args"] = {"youtube": {"player_client": ["android_creator"]}}
+        opts["user_agent"] = "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36"
+
+    return opts
+
+# --- Standard Bot Code ---
 music_queues = {}
 loop_states = {}
 loop_queue_states = {}
@@ -114,9 +125,12 @@ sp = spotipy.Spotify(client_credentials_manager=SpotifyClientCredentials(
     client_secret=SPOTIPY_CLIENT_SECRET
 ))
 
+# --- UPDATED EXTRACTOR (Calls get_ytdlp_options every time) ---
 async def extract_info_async(url: str):
     def blocking():
-        with yt_dlp.YoutubeDL(yt_dlp_options) as ydl:
+        # RE-GENERATE OPTIONS PER REQUEST to pick a new proxy
+        current_opts = get_ytdlp_options()
+        with yt_dlp.YoutubeDL(current_opts) as ydl:
             return ydl.extract_info(url, download=False)
     return await asyncio.get_event_loop().run_in_executor(executor, blocking)
 
@@ -545,8 +559,17 @@ async def play(interaction: discord.Interaction, search_term: str):
                 return
             search_term = url
 
-        ydl_opts_playlist = { 'format': 'bestaudio/best', 'quiet': True, 'extract_flat': 'in_playlist', 'noplaylist': False, "cookiefile": "cookies.txt" }
-        ydl = yt_dlp.YoutubeDL(ydl_opts_playlist)
+        # DYNAMIC EXTRACTOR CALL
+        # Note: We now call get_ytdlp_options() inside the extract_info_async wrapper
+        # so this part handles standard playlist/url parsing first.
+        # However, for the initial probe, we use the base options to be safe.
+        
+        # We need to manually invoke the rotator if we want the initial check to also be proxied
+        from yt_dlp import YoutubeDL
+        current_opts = get_ytdlp_options()
+        current_opts.update({'extract_flat': 'in_playlist'})
+        
+        ydl = YoutubeDL(current_opts)
         info = await loop.run_in_executor(executor, lambda: ydl.extract_info(search_term, download=False))
         
         if not info:
