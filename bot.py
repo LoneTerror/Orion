@@ -119,15 +119,14 @@ def get_ytdlp_options():
         opts["proxy"] = proxy_url
 
     # 3. Environment Specifics
+    # CRITICAL UPDATE: Always use 'android_creator' with proxies
+    # It bypasses blocks better than standard android/ios clients
     if sys.platform != "win32":
-        # SERVER (LINUX): Cookies + iOS Client
-        if os.path.exists("cookies.txt"):
-            opts["cookiefile"] = "cookies.txt"
-        
-        # We try 'android' first with proxies as it often works better than iOS on proxies
-        opts["extractor_args"] = {"youtube": {"player_client": ["android", "ios"]}}
+        # SERVER (LINUX): Disable Cookies + Use Creator Client
+        opts["cookiefile"] = None 
+        opts["extractor_args"] = {"youtube": {"player_client": ["android_creator"]}}
     else:
-        # PC (WINDOWS): Anonymous + Android Client
+        # PC (WINDOWS): Anonymous + Creator Client
         opts["cookiefile"] = None
         opts["extractor_args"] = {"youtube": {"player_client": ["android_creator"]}}
         opts["user_agent"] = "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36"
