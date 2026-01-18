@@ -10,3 +10,4 @@ run.bat
 startup.sh
 non-prem_cookies.txt
 proxies.txt
+install_node.py
